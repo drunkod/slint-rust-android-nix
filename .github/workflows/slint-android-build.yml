@@ -24,7 +24,7 @@ on:
 
 env:
   NIX_VERSION: "2.19.2"
-  CACHIX_NAME: ${{ env.CACHIX_NAME }}  # Optional: replace with your cachix cache
+  #CACHIX_NAME: ${{ env.CACHIX_NAME }}  # Optional: replace with your cachix cache
 
 jobs:
   build-apk:
