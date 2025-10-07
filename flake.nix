@@ -30,9 +30,7 @@
       };
 
     in {
-      # ═══════════════════════════════════════════════════════════
       # Development Shells
-      # ═══════════════════════════════════════════════════════════
       devShells = forAllSystems (system:
         let
           pkgs = nixpkgsFor system;
@@ -54,7 +52,6 @@
           };
 
         in {
-          # Default shell (Slint)
           default = pkgs.mkShell ({
             name = "slint-android-dev";
             
@@ -73,9 +70,7 @@
         }
       );
 
-      # ═══════════════════════════════════════════════════════════
-      # Packages (buildable outputs)
-      # ═══════════════════════════════════════════════════════════
+      # Packages
       packages = forAllSystems (system:
         let
           pkgs = nixpkgsFor system;
@@ -86,15 +81,12 @@
           };
 
         in {
-          # Slint Android emulator
           default = slintAndroid.emulator;
           slint-android-emulator = slintAndroid.emulator;
         }
       );
 
-      # ═══════════════════════════════════════════════════════════
-      # Apps (runnable with 'nix run')
-      # ═══════════════════════════════════════════════════════════
+      # Apps
       apps = forAllSystems (system:
         let
           pkgs = nixpkgsFor system;
@@ -104,20 +96,17 @@
             inherit pkgs lib system;
           };
 
-          # Find the info script from packages
           infoScript = lib.findFirst 
             (p: (p.name or "") == "slint-android-info") 
             null 
             slintAndroid.packages;
 
         in {
-          # Run Slint Android emulator
           default = {
             type = "app";
             program = "${slintAndroid.emulator}/bin/run-test-*";
           };
           
-          # Show Slint info
           info = {
             type = "app";
             program = "${infoScript}/bin/slint-android-info";
@@ -125,9 +114,7 @@
         }
       );
 
-      # ═══════════════════════════════════════════════════════════
-      # Formatter (for 'nix fmt')
-      # ═══════════════════════════════════════════════════════════
+      # Formatter
       formatter = forAllSystems (system:
         nixpkgs.legacyPackages.${system}.nixpkgs-fmt
       );

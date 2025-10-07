@@ -13,39 +13,20 @@ let
     };
   };
 
-  # ═══════════════════════════════════════════════════════════
-  # Choose your development mode:
-  # - "gstreamer" for GStreamer Android development
-  # - "slint" for Slint Android development
-  # - "both" for both environments
-  # ═══════════════════════════════════════════════════════════
-  devMode = "slint";  # Change this to switch modes
-
-  # Import GStreamer Android module
-  gstreamerAndroid =
-    if devMode == "gstreamer" || devMode == "both"
-    then import ./modules/gstreamer-android {
-      pkgs = pkgsWithUnfree;
-    }
-    else null;
-
   # Import Slint Android module
-  slintAndroid =
-    if devMode == "slint" || devMode == "both"
-    then import ./modules/slint-android {
-      pkgs = pkgsWithUnfree;
-      inherit lib system;
-    }
-    else null;
+  slintAndroid = import ./modules/slint-android {
+    pkgs = pkgsWithUnfree;
+    inherit lib system;
+  };
 
   # Import other modules
   packages = import ./modules/packages.nix {
     pkgs = pkgsWithUnfree;
-    inherit lib devMode gstreamerAndroid slintAndroid;
+    inherit lib slintAndroid;
   };
 
   environment = import ./modules/environment.nix {
-    inherit lib devMode gstreamerAndroid slintAndroid;
+    inherit lib slintAndroid;
   };
 
   previews = import ./modules/previews.nix {
@@ -54,7 +35,6 @@ let
 
   workspace = import ./modules/workspace.nix {
     pkgs = pkgsWithUnfree;
-    inherit devMode;
   };
 
 in {
@@ -67,9 +47,9 @@ in {
     previews
     workspace
   ];
-
-  # Export emulator package if using Slint
-  idx.packages = lib.optionalAttrs (devMode == "slint" || devMode == "both") {
-    slint-android-emulator = slintAndroid.emulator;
-  };
+  
+  # Export emulator package
+  # idx.packages = {
+  #   slint-android-emulator = slintAndroid.emulator;
+  # };
 }

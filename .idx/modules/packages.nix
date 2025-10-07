@@ -1,19 +1,10 @@
-{ pkgs, lib, devMode, gstreamerAndroid ? null, slintAndroid ? null }:
+{ pkgs, lib, slintAndroid }:
 
 let
-  # GStreamer packages
-  gstreamerPackages =
-    if gstreamerAndroid != null
-    then gstreamerAndroid.packages
-    else [];
-
   # Slint packages
-  slintPackages =
-    if slintAndroid != null
-    then slintAndroid.packages
-    else [];
+  slintPackages = slintAndroid.packages;
 
-  # Common packages
+  # Common development packages
   commonPackages = with pkgs; [
     git
     curl
@@ -22,7 +13,10 @@ let
     tree
     file
     which
+    ripgrep
+    fd
+    bat
   ];
 
 in
-  gstreamerPackages ++ slintPackages ++ commonPackages
+  slintPackages ++ commonPackages
