@@ -34,7 +34,7 @@ jobs:
     strategy:
       matrix:
         arch:
-          - x86_64-linux-android      # Emulator
+          # - x86_64-linux-android      # Emulator
           - aarch64-linux-android     # Device (ARM64)
         # Optionally add more architectures:
         # - armv7-linux-androideabi  # Older devices
