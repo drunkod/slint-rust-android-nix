@@ -13,23 +13,18 @@ let
   androidComposition = androidEnv.composeAndroidPackages {
     cmdLineToolsVersion = "8.0";
     includeNDK = true;
+    ndkVersion = "25.2.9519653";  # NDK r25c
 
-    # Platform versions
     platformVersions = [
       "30"
       "34"
       platformVersion
     ];
 
-    # Emulator and system images
     includeEmulator = true;
     includeSystemImages = true;
-    systemImageTypes = [
-      systemImageType
-      # "google_apis"
-    ];
+    systemImageTypes = [ systemImageType ];
 
-    # Target architectures
     abiVersions = [
       "x86"
       "x86_64"
@@ -43,21 +38,26 @@ let
   # Android SDK with Studio
   android-sdk = pkgs.android-studio.withSdk androidComposition.androidsdk;
 
-  # Import emulator configuration
-  emulator = import ./emulator.nix {
-    inherit pkgs androidEnv platformVersion systemImageType;
+  # Emulator
+  emulator = androidEnv.emulateApp {
+    name = "slint-android-emulator";
+    platformVersion = platformVersion;
+    abiVersion = "x86_64";
+    systemImageType = systemImageType;
   };
 
-  # Rust toolchain with Android targets
-  fenix = pkgs.callPackage (builtins.fetchGit {
+  # ✅ Fetch Fenix from GitHub
+  fenixPkgs = pkgs.callPackage (pkgs.fetchgit {
     url = "https://github.com/nix-community/fenix";
-    rev = "main";
+    rev = "1d3600dda5c27ddbc9c424bb4edae744bdb9b14d";
+    sha256 = "sha256-RUR2yXYbKSoDvI/JdH0AvojFjhCfxBXOA/BtGUpaoR0="; 
   }) { };
 
-  rustToolchain = fenix.combine [
-    fenix.stable.toolchain
-    fenix.targets.aarch64-linux-android.stable.rust-std
-    fenix.targets.x86_64-linux-android.stable.rust-std
+  # ✅ Rust toolchain with Android targets using Fenix
+  rustToolchain = fenixPkgs.combine [
+    fenixPkgs.stable.toolchain
+    fenixPkgs.targets.aarch64-linux-android.stable.rust-std
+    fenixPkgs.targets.x86_64-linux-android.stable.rust-std
   ];
 
   # Helper scripts
@@ -115,6 +115,7 @@ let
     echo "   SDK: $ANDROID_HOME"
     echo "   NDK: $ANDROID_NDK_ROOT"
     echo "   Java: $JAVA_HOME"
+    echo "   Rust: $(rustc --version 2>/dev/null || echo 'N/A')"
     echo ""
     echo "🎯 Targets:"
     echo "   • x86_64-linux-android (emulator)"
@@ -127,14 +128,14 @@ let
     echo "   slint-android-info             Show this info"
     echo ""
     echo "📖 Examples:"
-    echo "   slint-android-run              # Run on x86_64 emulator"
-    echo "   slint-android-run aarch64      # Run on device"
-    echo "   slint-android-build x86_64     # Build for emulator"
+    echo "   slint-android-run                         # Run on x86_64 emulator"
+    echo "   slint-android-run aarch64-linux-android   # Run on ARM64 device"
+    echo "   slint-android-build x86_64-linux-android debug    # Debug build"
+    echo "   slint-android-build aarch64-linux-android release # Release build"
     echo ""
   '';
 
 in {
-  # Packages to install
   packages = [
     rustToolchain
     pkgs.cargo-apk
@@ -146,17 +147,14 @@ in {
     infoScript
   ];
 
-  # Environment variables
   env = {
     ANDROID_HOME = "${androidComposition.androidsdk}/libexec/android-sdk";
     ANDROID_SDK_ROOT = "${androidComposition.androidsdk}/libexec/android-sdk";
     ANDROID_NDK_ROOT = "${androidComposition.androidsdk}/libexec/android-sdk/ndk-bundle";
     JAVA_HOME = "${pkgs.jdk17}";
 
-    # Rust cargo home (isolated)
     CARGO_HOME = "${currentPath}/.cargo-home";
 
-    # Library paths for Linux
     LD_LIBRARY_PATH = lib.makeLibraryPath (with pkgs; [
       wayland
       libxkbcommon
@@ -164,10 +162,8 @@ in {
     ]);
   };
 
-  # Export for use in other modules
   inherit androidComposition emulator;
 
-  # Shell hook
   shellHook = ''
     if [ -z "$_SLINT_ANDROID_INIT" ]; then
       export _SLINT_ANDROID_INIT=1
