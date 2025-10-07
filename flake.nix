@@ -1,10 +1,9 @@
 {
-  description = "Slint & GStreamer Android Development Environment";
+  description = "Slint Android Development Environment";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     
-    # Optional: For Slint with Rust
     fenix = {
       url = "github:nix-community/fenix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -13,7 +12,6 @@
 
   outputs = { self, nixpkgs, fenix, ... }:
     let
-      # Supported systems
       systems = [
         "x86_64-linux"
         "aarch64-linux"
@@ -21,10 +19,8 @@
         "aarch64-darwin"
       ];
 
-      # Helper to generate attrs for all systems
       forAllSystems = nixpkgs.lib.genAttrs systems;
 
-      # Helper to import nixpkgs for a system
       nixpkgsFor = system: import nixpkgs {
         inherit system;
         config = {
@@ -42,87 +38,38 @@
           pkgs = nixpkgsFor system;
           lib = pkgs.lib;
 
-          # Import modules helper
-          mkShell = devMode:
-            let
-              # Import GStreamer Android module
-              gstreamerAndroid =
-                if devMode == "gstreamer" || devMode == "both"
-                then import ./.idx/modules/gstreamer-android {
-                  pkgs = pkgs;
-                }
-                else null;
+          # Import Slint Android module
+          slintAndroid = import ./.idx/modules/slint-android {
+            inherit pkgs lib system;
+          };
 
-              # Import Slint Android module
-              slintAndroid =
-                if devMode == "slint" || devMode == "both"
-                then import ./.idx/modules/slint-android {
-                  inherit pkgs lib system;
-                }
-                else null;
+          # Import packages
+          packages = import ./.idx/modules/packages.nix {
+            inherit pkgs lib slintAndroid;
+          };
 
-              # Import packages
-              packages = import ./.idx/modules/packages.nix {
-                inherit pkgs lib devMode gstreamerAndroid slintAndroid;
-              };
-
-              # Import environment
-              environment = import ./.idx/modules/environment.nix {
-                inherit lib devMode gstreamerAndroid slintAndroid;
-              };
-
-              # Shell hook
-              shellHook = 
-                if devMode == "gstreamer" && gstreamerAndroid != null
-                then gstreamerAndroid.shellHook
-                else if devMode == "slint" && slintAndroid != null
-                then slintAndroid.shellHook
-                else if devMode == "both"
-                then ''
-                  ${gstreamerAndroid.shellHook or ""}
-                  ${slintAndroid.shellHook or ""}
-                ''
-                else "";
-
-            in pkgs.mkShell {
-              name = "android-dev-${devMode}";
-              
-              buildInputs = packages;
-              
-              shellHook = ''
-                echo ""
-                echo "╔═══════════════════════════════════════════════════╗"
-                echo "║  🚀 Android Development Environment (${devMode})    "
-                echo "╚═══════════════════════════════════════════════════╝"
-                echo ""
-                ${shellHook}
-              '';
-              
-              # Export environment variables
-              inherit (environment) 
-                ANDROID_HOME 
-                ANDROID_SDK_ROOT 
-                ANDROID_NDK_ROOT 
-                JAVA_HOME;
-              
-              # Additional environment from modules
-              passthru = {
-                inherit devMode gstreamerAndroid slintAndroid;
-              };
-            } // environment;
+          # Import environment
+          environment = import ./.idx/modules/environment.nix {
+            inherit lib slintAndroid;
+          };
 
         in {
           # Default shell (Slint)
-          default = mkShell "slint";
-          
-          # Slint-only development shell
-          slint = mkShell "slint";
-          
-          # GStreamer-only development shell
-          gstreamer = mkShell "gstreamer";
-          
-          # Both environments
-          full = mkShell "both";
+          default = pkgs.mkShell ({
+            name = "slint-android-dev";
+            
+            buildInputs = packages;
+            
+            shellHook = ''
+              echo ""
+              echo "╔═══════════════════════════════════════════════════╗"
+              echo "║  🎨 Slint Android Development Environment        ║"
+              echo "╚═══════════════════════════════════════════════════╝"
+              echo ""
+              ${slintAndroid.shellHook}
+            '';
+            
+          } // environment);
         }
       );
 
@@ -134,31 +81,14 @@
           pkgs = nixpkgsFor system;
           lib = pkgs.lib;
 
-          # GStreamer Android build
-          gstreamerAndroid = import ./.idx/modules/gstreamer-android {
-            inherit pkgs;
-          };
-
-          # Slint Android module
           slintAndroid = import ./.idx/modules/slint-android {
             inherit pkgs lib system;
           };
 
         in {
-          # Default: GStreamer Android libraries
-          default = gstreamerAndroid.build;
-          
-          # GStreamer Android JNI libraries
-          gstreamer-android-jni = gstreamerAndroid.build;
-          
           # Slint Android emulator
+          default = slintAndroid.emulator;
           slint-android-emulator = slintAndroid.emulator;
-          
-          # All scripts
-          gst-android-scripts = pkgs.buildEnv {
-            name = "gst-android-scripts";
-            paths = gstreamerAndroid.packages;
-          };
         }
       );
 
@@ -174,21 +104,23 @@
             inherit pkgs lib system;
           };
 
-          gstreamerAndroid = import ./.idx/modules/gstreamer-android {
-            inherit pkgs;
-          };
+          # Find the info script from packages
+          infoScript = lib.findFirst 
+            (p: (p.name or "") == "slint-android-info") 
+            null 
+            slintAndroid.packages;
 
         in {
           # Run Slint Android emulator
-          slint-emulator = {
+          default = {
             type = "app";
             program = "${slintAndroid.emulator}/bin/run-test-*";
           };
           
-          # Show GStreamer info
-          gst-info = {
+          # Show Slint info
+          info = {
             type = "app";
-            program = "${pkgs.lib.findFirst (p: p.name or "" == "gst-android-info") null gstreamerAndroid.packages}/bin/gst-android-info";
+            program = "${infoScript}/bin/slint-android-info";
           };
         }
       );
