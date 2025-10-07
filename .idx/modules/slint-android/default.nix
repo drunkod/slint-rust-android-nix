@@ -3,13 +3,12 @@
 let
   # Android configuration
   platformVersion = "35";
-  systemImageType = "default";
   currentPath = builtins.getEnv "PWD";
 
   # Accept Android licenses
   androidEnv = pkgs.androidenv.override { licenseAccepted = true; };
 
-  # Compose Android packages
+  # Compose Android packages (minimal, no emulator/system images)
   androidComposition = androidEnv.composeAndroidPackages {
     cmdLineToolsVersion = "8.0";
     includeNDK = true;
@@ -21,13 +20,11 @@ let
       platformVersion
     ];
 
-    includeEmulator = true;
-    includeSystemImages = true;
-    systemImageTypes = [ systemImageType ];
+    # Removed emulator and system images
+    includeEmulator = false;
+    includeSystemImages = false;
 
     abiVersions = [
-      "x86"
-      "x86_64"
       "armeabi-v7a"
       "arm64-v8a"
     ];
@@ -35,16 +32,8 @@ let
     cmakeVersions = [ "3.10.2" ];
   };
 
-  # Android SDK with Studio
-  android-sdk = pkgs.android-studio.withSdk androidComposition.androidsdk;
-
-  # Emulator
-  emulator = androidEnv.emulateApp {
-    name = "slint-android-emulator";
-    platformVersion = platformVersion;
-    abiVersion = "x86_64";
-    systemImageType = systemImageType;
-  };
+  # Android SDK (without Studio to save space)
+  android-sdk = androidComposition.androidsdk;
 
   # ✅ Fetch Fenix from GitHub
   fenixPkgs = pkgs.callPackage (pkgs.fetchgit {
@@ -57,7 +46,7 @@ let
   rustToolchain = fenixPkgs.combine [
     fenixPkgs.stable.toolchain
     fenixPkgs.targets.aarch64-linux-android.stable.rust-std
-    fenixPkgs.targets.x86_64-linux-android.stable.rust-std
+    fenixPkgs.targets.armv7-linux-androideabi.stable.rust-std
   ];
 
   # Helper scripts
@@ -65,10 +54,12 @@ let
     #!/usr/bin/env bash
     set -euo pipefail
 
-    TARGET="''${1:-x86_64-linux-android}"
+    TARGET="''${1:-aarch64-linux-android}"
 
     echo "🚀 Building and running Slint Android app..."
     echo "   Target: $TARGET"
+    echo ""
+    echo "📱 Make sure your device is connected via ADB"
     echo ""
 
     cargo apk run --target "$TARGET" --lib
@@ -78,7 +69,7 @@ let
     #!/usr/bin/env bash
     set -euo pipefail
 
-    TARGET="''${1:-x86_64-linux-android}"
+    TARGET="''${1:-aarch64-linux-android}"
     MODE="''${2:-debug}"
 
     echo "🔨 Building Slint Android APK..."
@@ -97,10 +88,24 @@ let
     find target -name "*.apk" -type f | head -5
   '';
 
-  emulatorScript = pkgs.writeShellScriptBin "slint-android-emulator" ''
+  installApkScript = pkgs.writeShellScriptBin "slint-android-install" ''
     #!/usr/bin/env bash
-    echo "📱 Starting Android emulator..."
-    nix run .#slint-android-emulator
+    set -euo pipefail
+
+    APK_PATH="''${1:-}"
+
+    if [ -z "$APK_PATH" ]; then
+      echo "📱 Looking for APK files..."
+      APK_PATH=$(find target -name "*.apk" -type f | head -1)
+    fi
+
+    if [ -z "$APK_PATH" ] || [ ! -f "$APK_PATH" ]; then
+      echo "❌ No APK file found. Build one first with 'slint-android-build'"
+      exit 1
+    fi
+
+    echo "📱 Installing APK: $APK_PATH"
+    adb install -r "$APK_PATH"
   '';
 
   infoScript = pkgs.writeShellScriptBin "slint-android-info" ''
@@ -111,27 +116,31 @@ let
     echo "╚════════════════════════════════════════════════╝"
     echo ""
     echo "📦 Configuration:"
-    echo "   Platform: Android ${platformVersion} (${systemImageType})"
+    echo "   Platform: Android ${platformVersion}"
     echo "   SDK: $ANDROID_HOME"
     echo "   NDK: $ANDROID_NDK_ROOT"
     echo "   Java: $JAVA_HOME"
     echo "   Rust: $(rustc --version 2>/dev/null || echo 'N/A')"
     echo ""
     echo "🎯 Targets:"
-    echo "   • x86_64-linux-android (emulator)"
-    echo "   • aarch64-linux-android (device)"
+    echo "   • aarch64-linux-android (ARM64 devices)"
+    echo "   • armv7-linux-androideabi (ARM devices)"
     echo ""
     echo "🛠️  Commands:"
-    echo "   slint-android-run [target]     Run on emulator/device"
-    echo "   slint-android-build [target]   Build APK"
-    echo "   slint-android-emulator         Start emulator"
-    echo "   slint-android-info             Show this info"
+    echo "   slint-android-build [target] [mode]   Build APK"
+    echo "   slint-android-run [target]            Build and run on device"
+    echo "   slint-android-install [apk]           Install APK on device"
+    echo "   slint-android-info                    Show this info"
     echo ""
     echo "📖 Examples:"
-    echo "   slint-android-run                         # Run on x86_64 emulator"
-    echo "   slint-android-run aarch64-linux-android   # Run on ARM64 device"
-    echo "   slint-android-build x86_64-linux-android debug    # Debug build"
+    echo "   slint-android-build                              # Debug build for ARM64"
     echo "   slint-android-build aarch64-linux-android release # Release build"
+    echo "   slint-android-run aarch64-linux-android          # Run on ARM64 device"
+    echo "   slint-android-install target/debug/apk/*.apk     # Install specific APK"
+    echo ""
+    echo "📱 Device Connection:"
+    echo "   adb devices                          # List connected devices"
+    echo "   adb logcat                          # View device logs"
     echo ""
   '';
 
@@ -141,9 +150,10 @@ in {
     pkgs.cargo-apk
     pkgs.jdk17
     android-sdk
-    runAndroidScript
+    pkgs.android-tools  # For adb
     buildApkScript
-    emulatorScript
+    runAndroidScript
+    installApkScript
     infoScript
   ];
 
@@ -162,13 +172,16 @@ in {
     ]);
   };
 
-  inherit androidComposition emulator;
+  inherit androidComposition;
 
   shellHook = ''
     if [ -z "$_SLINT_ANDROID_INIT" ]; then
       export _SLINT_ANDROID_INIT=1
       echo "🎨 Slint Android environment ready!"
       echo "   Run 'slint-android-info' for help"
+      echo ""
+      echo "📱 Note: Emulator removed to save space."
+      echo "   Connect a physical device via USB for testing."
     fi
   '';
 }
