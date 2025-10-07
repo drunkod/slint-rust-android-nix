@@ -1,0 +1,48 @@
+name: Build All Android Artifacts
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-slint-apk:
+    name: Build Slint APK
+    uses: ./.github/workflows/slint-android-build.yml
+    secrets: inherit
+
+  build-gstreamer-libs:
+    name: Build GStreamer Libraries
+    uses: ./.github/workflows/gstreamer-android-build.yml
+    secrets: inherit
+
+  summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [build-slint-apk, build-gstreamer-libs]
+
+    steps:
+      - name: 📊 Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts
+
+      - name: 📋 Generate summary
+        run: |
+          echo "# 🎉 Android Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📦 Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Slint APKs" >> $GITHUB_STEP_SUMMARY
+          find all-artifacts -name "*.apk" | while read apk; do
+            echo "- $(basename "$apk") ($(du -h "$apk" | cut -f1))" >> $GITHUB_STEP_SUMMARY
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### GStreamer Libraries" >> $GITHUB_STEP_SUMMARY
+          find all-artifacts -name "*.so" | while read so; do
+            echo "- $(basename "$so") ($(du -h "$so" | cut -f1))" >> $GITHUB_STEP_SUMMARY
+          done

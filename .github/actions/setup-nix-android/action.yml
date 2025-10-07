@@ -1,0 +1,43 @@
+name: 'Setup Nix for Android builds'
+description: 'Install Nix with Android development configuration'
+
+inputs:
+  cachix-name:
+    description: 'Cachix cache name'
+    required: false
+  cachix-auth-token:
+    description: 'Cachix auth token'
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - name: 🔧 Install Nix
+      uses: cachix/install-nix-action@v25
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          accept-flake-config = true
+          max-jobs = auto
+          cores = 0
+
+    - name: 🗄️ Setup Cachix
+      if: ${{ inputs.cachix-name != '' }}
+      uses: cachix/cachix-action@v14
+      with:
+        name: ${{ inputs.cachix-name }}
+        authToken: ${{ inputs.cachix-auth-token }}
+
+    - name: 📦 Setup Android SDK environment
+      shell: bash
+      run: |
+        # Accept Android licenses
+        export NIXPKGS_ALLOW_UNFREE=1
+        export NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE=1
+
+        echo "NIXPKGS_ALLOW_UNFREE=1" >> $GITHUB_ENV
+        echo "NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE=1" >> $GITHUB_ENV
+
+        # Pre-fetch Android SDK to cache it
+        nix develop --impure --command echo "Android SDK ready"
