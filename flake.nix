@@ -1,5 +1,5 @@
 {
-  description = "Slint Android Development Environment";
+  description = "Slint Android Development Environment (Minimal)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -61,28 +61,13 @@
               echo ""
               echo "╔═══════════════════════════════════════════════════╗"
               echo "║  🎨 Slint Android Development Environment        ║"
+              echo "║           (Minimal - No Emulator)                ║"
               echo "╚═══════════════════════════════════════════════════╝"
               echo ""
               ${slintAndroid.shellHook}
             '';
             
           } // environment);
-        }
-      );
-
-      # Packages
-      packages = forAllSystems (system:
-        let
-          pkgs = nixpkgsFor system;
-          lib = pkgs.lib;
-
-          slintAndroid = import ./.idx/modules/slint-android {
-            inherit pkgs lib system;
-          };
-
-        in {
-          default = slintAndroid.emulator;
-          slint-android-emulator = slintAndroid.emulator;
         }
       );
 
@@ -101,15 +86,20 @@
             null 
             slintAndroid.packages;
 
+          buildScript = lib.findFirst
+            (p: (p.name or "") == "slint-android-build")
+            null
+            slintAndroid.packages;
+
         in {
-          default = {
-            type = "app";
-            program = "${slintAndroid.emulator}/bin/run-test-*";
-          };
-          
           info = {
             type = "app";
             program = "${infoScript}/bin/slint-android-info";
+          };
+          
+          build = {
+            type = "app";
+            program = "${buildScript}/bin/slint-android-build";
           };
         }
       );

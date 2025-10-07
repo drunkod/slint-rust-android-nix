@@ -1,22 +1,18 @@
-# Run on x86_64 emulator
+# Run on connected device (aarch64)
 run:
-    slint-android-run x86_64-linux-android
-
-# Run on ARM device
-run-device:
     slint-android-run aarch64-linux-android
 
-# Build APK
+# Build debug APK for device (aarch64)
 build:
-    slint-android-build x86_64-linux-android
+    slint-android-build aarch64-linux-android
 
-# Build release APK
+# Build release APK for device (aarch64)
 build-release:
-    slint-android-build x86_64-linux-android release
+    slint-android-build aarch64-linux-android release
 
-# Start emulator
-emulator:
-    slint-android-emulator
+# Install latest built APK to device
+install:
+    slint-android-install
 
 # Show info
 info:
