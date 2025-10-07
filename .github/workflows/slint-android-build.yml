@@ -1,0 +1,108 @@
+name: Build Slint Android APK
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'src/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.idx/modules/slint-android/**'
+      - '.github/workflows/slint-android-build.yml'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: 'Build mode (debug/release)'
+        required: false
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+
+env:
+  NIX_VERSION: "2.19.2"
+  CACHIX_NAME: "my-android-builds"  # Optional: replace with your cachix cache
+
+jobs:
+  build-apk:
+    name: Build APK (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        arch:
+          - x86_64-linux-android      # Emulator
+          - aarch64-linux-android     # Device (ARM64)
+        # Optionally add more architectures:
+        # - armv7-linux-androideabi  # Older devices
+        # - i686-linux-android       # x86 emulator
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔧 Install Nix
+        uses: cachix/install-nix-action@v25
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      # Optional: Use Cachix for faster builds
+      - name: 🗄️ Setup Cachix
+        uses: cachix/cachix-action@v14
+        if: ${{ env.CACHIX_NAME != '' }}
+        with:
+          name: ${{ env.CACHIX_NAME }}
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+      - name: 📦 Build Slint APK (${{ matrix.arch }})
+        run: |
+          # Enter Nix development shell and build
+          nix develop --impure --command bash -c '
+            export NIXPKGS_ALLOW_UNFREE=1
+
+            TARGET="${{ matrix.arch }}"
+            MODE="${{ inputs.build_mode || 'debug' }}"
+
+            echo "Building APK for $TARGET ($MODE mode)..."
+
+            if [ "$MODE" = "release" ]; then
+              cargo apk build --target "$TARGET" --lib --release
+            else
+              cargo apk build --target "$TARGET" --lib
+            fi
+
+            # Find and list built APKs
+            echo "Built APKs:"
+            find target -name "*.apk" -type f
+          '
+
+      - name: 📤 Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: slint-apk-${{ matrix.arch }}-${{ inputs.build_mode || 'debug' }}
+          path: |
+            target/**/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: 📊 APK Info
+        run: |
+          echo "## 📱 Built APKs" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| File | Size | Architecture |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|--------------|" >> $GITHUB_STEP_SUMMARY
+
+          find target -name "*.apk" -type f | while read apk; do
+            size=$(du -h "$apk" | cut -f1)
+            name=$(basename "$apk")
+            echo "| $name | $size | ${{ matrix.arch }} |" >> $GITHUB_STEP_SUMMARY
+          done
