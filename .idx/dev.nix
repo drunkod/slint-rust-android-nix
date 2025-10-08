@@ -20,10 +20,10 @@ let
   };
 
   # Import other modules
-  packages = import ./modules/packages.nix {
-    pkgs = pkgsWithUnfree;
-    inherit lib slintAndroid;
-  };
+  #packages = import ./modules/packages.nix {
+  #  pkgs = pkgsWithUnfree;
+  #  inherit lib slintAndroid;
+  #};
 
   environment = import ./modules/environment.nix {
     inherit lib slintAndroid;
