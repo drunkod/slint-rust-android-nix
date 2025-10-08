@@ -1,8 +1,8 @@
 { pkgs, lib, slintAndroid }:
 
-let
+#let
   # Slint packages
-  slintPackages = slintAndroid.packages;
+  # slintPackages = slintAndroid.packages;
 
   # Common development packages
   commonPackages = with pkgs; [
@@ -18,5 +18,5 @@ let
     bat
   ];
 
-in
-  slintPackages ++ commonPackages
+#in
+#  slintPackages ++ commonPackages
