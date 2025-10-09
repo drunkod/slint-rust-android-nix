@@ -5,7 +5,7 @@ let
   system = pkgs.stdenv.system;
 
   # ═══════════════════════════════════════════════════════════════════
-  # Apply overlays
+  # Apply overlays 
   # ═══════════════════════════════════════════════════════════════════
   # Apply overlays - NOW IN .idx/overlays/
   overlays = import ./overlays/default.nix;
