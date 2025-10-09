@@ -4,37 +4,32 @@
 let
   system = pkgs.stdenv.system;
 
-  # Import nixpkgs with unfree packages allowed
-  pkgsWithUnfree = import pkgs.path {
-    inherit system;
-    config = {
-      allowUnfree = true;
-      android_sdk.accept_license = true;
-    };
-  };
+  # ═══════════════════════════════════════════════════════════════════
+  # Apply overlays
+  # ═══════════════════════════════════════════════════════════════════
+  # Apply overlays - NOW IN .idx/overlays/
+  overlays = import ./overlays/default.nix;
 
-  # Import Slint Android module
-  slintAndroid = import ./modules/slint-android {
-    pkgs = pkgsWithUnfree;
-    inherit lib system;
-  };
+  # Apply overlays to pkgs
+  extendedPkgs = builtins.foldl' (p: overlay: p.extend overlay) pkgs overlays;
 
-  # Import other modules
-  #packages = import ./modules/packages.nix {
-  #  pkgs = pkgsWithUnfree;
-  #  inherit lib slintAndroid;
-  #};
+  # Import modules (without slint-android auto-loading)
+  packages = import ./modules/packages.nix {
+    pkgs = extendedPkgs;
+    inherit lib;
+  };
 
   environment = import ./modules/environment.nix {
-    inherit lib slintAndroid;
+    pkgs = extendedPkgs;
+    inherit lib;
   };
 
   previews = import ./modules/previews.nix {
-    pkgs = pkgsWithUnfree;
+    pkgs = extendedPkgs;
   };
 
   workspace = import ./modules/workspace.nix {
-    pkgs = pkgsWithUnfree;
+    pkgs = extendedPkgs;
   };
 
 in {
@@ -47,9 +42,4 @@ in {
     previews
     workspace
   ];
-  
-  # Export emulator package
-  # idx.packages = {
-  #   slint-android-emulator = slintAndroid.emulator;
-  # };
 }
