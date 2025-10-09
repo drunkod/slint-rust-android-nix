@@ -7,26 +7,30 @@
       welcome = ''
         echo ""
         echo "╔═══════════════════════════════════════════════════╗"
-        echo "║  🎨 Slint Android Development Environment        ║"
+        echo "║     🚀 Development Environment Ready              ║"
         echo "╚═══════════════════════════════════════════════════╝"
         echo ""
-        echo "🚀 Quick Start:"
-        echo "  slint-android-info       Show all commands and config"
-        echo "  slint-android-build      Build APK for device"
+        echo "📦 Overlays loaded:"
+        echo "  ✓ Android SDK (${pkgs.androidPlatformVersion})"
+        echo "  ✓ Rust Toolchain (with Android targets)"
+        echo "  ✓ Fenix"
+        echo ""
+        echo "🔧 To enable Slint Android development:"
+        echo "  1. Run: nix develop .#slint"
+        echo "  2. Or load manually in your shell"
+        echo ""
+        echo "📖 Available commands after loading Slint:"
+        echo "  slint-android-info       Show all commands"
+        echo "  slint-android-build      Build APK"
         echo "  slint-android-run        Build and run on device"
-        echo "  slint-android-install    Install APK on device"
-        echo ""
-        echo "📱 Note: Connect a physical device via USB for testing"
-        echo "        (Emulator removed to save disk space)"
-        echo ""
-        echo "📖 Documentation:"
-        echo "  https://slint.dev/releases/1.0/docs/rust/slint/android/"
         echo ""
       '';
     };
 
     onStart = {
-      info = "slint-android-info";
+      info = ''
+        echo "💡 Tip: Load Slint Android tools with 'nix develop .#slint'"
+      '';
     };
   };
 }

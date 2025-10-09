@@ -1,27 +1,15 @@
 {
-  description = "Slint Android Development Environment (Minimal)";
+  description = "Slint Android Development Environment";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    
-    fenix = {
-      url = "github:nix-community/fenix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
-  outputs = { self, nixpkgs, fenix, ... }:
+  outputs = { self, nixpkgs }:
     let
-      systems = [
-        "x86_64-linux"
-        "aarch64-linux"
-        "x86_64-darwin"
-        "aarch64-darwin"
-      ];
+      system = "x86_64-linux";
 
-      forAllSystems = nixpkgs.lib.genAttrs systems;
-
-      nixpkgsFor = system: import nixpkgs {
+      pkgs = import nixpkgs {
         inherit system;
         config = {
           allowUnfree = true;
@@ -29,84 +17,102 @@
         };
       };
 
-    in {
-      # Development Shells
-      devShells = forAllSystems (system:
-        let
-          pkgs = nixpkgsFor system;
-          lib = pkgs.lib;
+      # Import dev.nix configuration
+      devConfig = import ./.idx/dev.nix {
+        inherit pkgs;
+        lib = pkgs.lib;
+        config = {};
+      };
 
-          # Import Slint Android module
-          slintAndroid = import ./.idx/modules/slint-android {
-            inherit pkgs lib system;
-          };
+      # Extract packages and environment from first import
+      firstImport = builtins.elemAt devConfig.imports 0;
+      envPackages = firstImport.packages;
+      envSetup = firstImport.env;
 
-          # Import packages
-          packages = import ./.idx/modules/packages.nix {
-            inherit pkgs lib slintAndroid;
-          };
+      # Apply overlays - FROM .idx/overlays/
+      overlays = import ./.idx/overlays/default.nix;
+      extendedPkgs = builtins.foldl' (p: overlay: p.extend overlay) pkgs overlays;
 
-          # Import environment
-          environment = import ./.idx/modules/environment.nix {
-            inherit lib slintAndroid;
-          };
+      # Import Slint Android module
+      slintAndroid = import ./.idx/modules/slint-android {
+        pkgs = extendedPkgs;
+        lib = pkgs.lib;
+        inherit system;
+      };
 
-        in {
-          default = pkgs.mkShell ({
-            name = "slint-android-dev";
-            
-            buildInputs = packages;
-            
-            shellHook = ''
-              echo ""
-              echo "╔═══════════════════════════════════════════════════╗"
-              echo "║  🎨 Slint Android Development Environment        ║"
-              echo "║           (Minimal - No Emulator)                ║"
-              echo "╚═══════════════════════════════════════════════════╝"
-              echo ""
-              ${slintAndroid.shellHook}
-            '';
-            
-          } // environment);
-        }
-      );
+      # Slint packages
+      slintPackages = slintAndroid.packages ++ envPackages;
+      slintEnv = envSetup // slintAndroid.env;
 
-      # Apps
-      apps = forAllSystems (system:
-        let
-          pkgs = nixpkgsFor system;
-          lib = pkgs.lib;
+    in
+    {
+      # Development Shells - FIX: Combined into single attribute set
+      devShells.${system} = {
+        # Default shell - minimal with base packages
+        default = pkgs.mkShell ({
+          buildInputs = envPackages;
 
-          slintAndroid = import ./.idx/modules/slint-android {
-            inherit pkgs lib system;
-          };
+          shellHook = ''
+            export NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE=1
+            ${envSetup.shellHook or ""}
 
-          infoScript = lib.findFirst 
-            (p: (p.name or "") == "slint-android-info") 
-            null 
-            slintAndroid.packages;
+            echo ""
+            echo "╔═══════════════════════════════════════════════════╗"
+            echo "║     📦 Base Development Environment               ║"
+            echo "╚═══════════════════════════════════════════════════╝"
+            echo ""
+            echo "✅ Base packages loaded"
+            echo "✅ Overlays available (Android SDK, Rust, Fenix)"
+            echo ""
+            echo "💡 To load Slint Android tools:"
+            echo "   nix develop .#slint"
+            echo ""
+          '';
+        } // envSetup);
 
-          buildScript = lib.findFirst
-            (p: (p.name or "") == "slint-android-build")
-            null
-            slintAndroid.packages;
+        # Slint shell - full Android development environment
+        slint = pkgs.mkShell ({
+          buildInputs = slintPackages;
 
-        in {
-          info = {
-            type = "app";
-            program = "${infoScript}/bin/slint-android-info";
-          };
-          
-          build = {
-            type = "app";
-            program = "${buildScript}/bin/slint-android-build";
-          };
-        }
-      );
+          shellHook = ''
+            export NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE=1
+            ${slintAndroid.shellHook}
+          '';
+        } // slintEnv);
+      };
+
+      # Apps for direct command execution
+      apps.${system} = {
+        info = {
+          type = "app";
+          program = let
+            infoScript = pkgs.lib.findFirst
+              (p: (p.name or "") == "slint-android-info")
+              null
+              slintAndroid.packages;
+          in "${infoScript}/bin/slint-android-info";
+        };
+
+        build = {
+          type = "app";
+          program = let
+            buildScript = pkgs.lib.findFirst
+              (p: (p.name or "") == "slint-android-build")
+              null
+              slintAndroid.packages;
+          in "${buildScript}/bin/slint-android-build";
+        };
+      };
+
+      # Checks
+      checks.${system}.default = pkgs.runCommand "overlay-check" {} ''
+        echo "Checking overlays..." > $out
+        echo "Android Platform: ${extendedPkgs.androidPlatformVersion}" >> $out
+        echo "Rust Toolchain: ${extendedPkgs.rustToolchain}" >> $out
+        echo "Overlays loaded successfully" >> $out
+      '';
 
       # Formatter
-      formatter = forAllSystems (system:
-        nixpkgs.legacyPackages.${system}.nixpkgs-fmt
-      );
+      formatter.${system} = pkgs.nixpkgs-fmt;
     };
 }
