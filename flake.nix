@@ -1,5 +1,5 @@
 {
-  description = "Slint Android Development Environment (Minimal)";
+  description = "Development Environment with Manual Slint Loading";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -36,38 +36,69 @@
           pkgs = nixpkgsFor system;
           lib = pkgs.lib;
 
-          # Import Slint Android module
+          # Apply overlays
+          overlays = import ./.idx/overlays/default.nix;
+          extendedPkgs = builtins.foldl' (p: overlay: p.extend overlay) pkgs overlays;
+
+          # Base packages
+          basePackages = import ./.idx/modules/packages.nix {
+            pkgs = extendedPkgs;
+            inherit lib;
+          };
+
+          # Slint Android module (for manual shell)
           slintAndroid = import ./.idx/modules/slint-android {
-            inherit pkgs lib system;
+            pkgs = extendedPkgs;
+            inherit lib system;
           };
 
-          # Import packages
-          packages = import ./.idx/modules/packages.nix {
-            inherit pkgs lib slintAndroid;
+          slintPackages = import ./.idx/modules/packages.nix {
+            pkgs = extendedPkgs;
+            inherit lib;
           };
 
-          # Import environment
-          environment = import ./.idx/modules/environment.nix {
-            inherit lib slintAndroid;
+          slintEnvironment = import ./.idx/modules/environment.nix {
+            pkgs = extendedPkgs;
+            inherit lib;
           };
 
         in {
-          default = pkgs.mkShell ({
+          # Default shell: minimal with overlays
+          default = pkgs.mkShell {
+            name = "dev-environment";
+
+            buildInputs = basePackages;
+
+            shellHook = ''
+              echo ""
+              echo "╔═══════════════════════════════════════════════════╗"
+              echo "║     📦 Base Development Environment               ║"
+              echo "╚═══════════════════════════════════════════════════╝"
+              echo ""
+              echo "✅ Overlays loaded (Android SDK, Rust, Fenix)"
+              echo ""
+              echo "💡 To load Slint Android tools:"
+              echo "   nix develop .#slint"
+              echo ""
+            '';
+          };
+
+          # Slint shell: full Slint Android development
+          slint = pkgs.mkShell ({
             name = "slint-android-dev";
             
-            buildInputs = packages;
+            buildInputs = slintPackages ++ slintAndroid.packages;
             
             shellHook = ''
               echo ""
               echo "╔═══════════════════════════════════════════════════╗"
               echo "║  🎨 Slint Android Development Environment        ║"
-              echo "║           (Minimal - No Emulator)                ║"
               echo "╚═══════════════════════════════════════════════════╝"
               echo ""
               ${slintAndroid.shellHook}
             '';
             
-          } // environment);
+          } // slintEnvironment // slintAndroid.env);
         }
       );
 
@@ -76,9 +107,12 @@
         let
           pkgs = nixpkgsFor system;
           lib = pkgs.lib;
+          overlays = import ./.idx/overlays/default.nix;
+          extendedPkgs = builtins.foldl' (p: overlay: p.extend overlay) pkgs overlays;
 
           slintAndroid = import ./.idx/modules/slint-android {
-            inherit pkgs lib system;
+            pkgs = extendedPkgs;
+            inherit lib system;
           };
 
           infoScript = lib.findFirst 

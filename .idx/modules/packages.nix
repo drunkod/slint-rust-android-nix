@@ -1,11 +1,15 @@
-{ pkgs, lib, slintAndroid }:
+# .idx/modules/packages.nix
+{ pkgs, lib }:
 
 let
-  # Slint packages
- slintPackages = slintAndroid.packages;
+  # Base development packages (overlays provide androidSdk, rustToolchain, etc.)
+  basePackages = with pkgs; [
+    # Overlayed packages (available but not in buildInputs by default)
+    # rustToolchain
+    # androidSdk
+    # fenixPkgs
 
-  # Common development packages
-  commonPackages = with pkgs; [
+    # Common development tools
     git
     curl
     wget
@@ -16,7 +20,12 @@ let
     ripgrep
     fd
     bat
+
+    # Basic build tools
+    gcc
+    gnumake
+    pkg-config
   ];
 
 in
- slintPackages ++ commonPackages
+  basePackages
