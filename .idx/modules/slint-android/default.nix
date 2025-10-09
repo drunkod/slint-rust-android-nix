@@ -1,53 +1,14 @@
+# .idx/modules/slint-android/default.nix
 { pkgs, lib, system }:
 
 let
-  # Android configuration
-  platformVersion = "35";
+  # Use overlayed packages
+  platformVersion = pkgs.androidPlatformVersion;
+  androidComposition = pkgs.androidComposition;
+  android-sdk = pkgs.androidSdk;
+  rustToolchain = pkgs.rustToolchain;
+
   currentPath = builtins.getEnv "PWD";
-
-  # Accept Android licenses
-  androidEnv = pkgs.androidenv.override { licenseAccepted = true; };
-
-  # Compose Android packages (minimal, no emulator/system images)
-  androidComposition = androidEnv.composeAndroidPackages {
-    cmdLineToolsVersion = "8.0";
-    includeNDK = true;
-    ndkVersion = "25.2.9519653";  # NDK r25c
-
-    platformVersions = [
-      "30"
-      "34"
-      platformVersion
-    ];
-
-    # Removed emulator and system images
-    includeEmulator = false;
-    includeSystemImages = false;
-
-    abiVersions = [
-      "armeabi-v7a"
-      "arm64-v8a"
-    ];
-
-    cmakeVersions = [ "3.10.2" ];
-  };
-
-  # Android SDK (without Studio to save space)
-  android-sdk = androidComposition.androidsdk;
-
-  # ✅ Fetch Fenix from GitHub
-  fenixPkgs = pkgs.callPackage (pkgs.fetchgit {
-    url = "https://github.com/nix-community/fenix";
-    rev = "1d3600dda5c27ddbc9c424bb4edae744bdb9b14d";
-    sha256 = "sha256-RUR2yXYbKSoDvI/JdH0AvojFjhCfxBXOA/BtGUpaoR0="; 
-  }) { };
-
-  # ✅ Rust toolchain with Android targets using Fenix
-  rustToolchain = fenixPkgs.combine [
-    fenixPkgs.stable.toolchain
-    fenixPkgs.targets.aarch64-linux-android.stable.rust-std
-    fenixPkgs.targets.armv7-linux-androideabi.stable.rust-std
-  ];
 
   # Helper scripts
   runAndroidScript = pkgs.writeShellScriptBin "slint-android-run" ''
